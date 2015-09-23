@@ -1,6 +1,6 @@
-name: Your New Jekyll Site
-description: Blogging about stuffs
-meta_description: "Your New Jekyll Site, Blogging about stuffs"
+name: Яetarded Ninja
+description: Reverse all the things
+meta_description: "Яetarded Ninja, Reverse all the things"
 
 aboutPage: true
 
@@ -9,15 +9,15 @@ highlighter: pygments
 
 paginate: 20
 baseurl: /
-domain_name: 'http://yourblog-domain.com'
+domain_name: 'https://retarded.ninja'
 google_analytics: 'UA-XXXXXXXX-X'
 disqus: false
 disqus_shortname: 'your-disqus-shortname'
 
 # Details for the RSS feed generator
-url:            'http://your-blog-url.example.com'
-author:         'Your Name'
-authorTwitter:  'YourTwitterUsername'
+url:            'https://retarded.ninja'
+author:         '0xroot'
+authorTwitter:  '0xroot'
 
 permalink:       /:year/:title/
 
