@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Яetarded Ninja - Apple Pay And Touch Id Part I</title>
+  <link rel="shortcut icon" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="alternate" type="application/rss+xml" title="My Blog" href="/rss.xml">
+  <link rel="stylesheet" href="/assets/css/highlight.css">
+</head>
+<body>
+
+  <nav class="main-nav">
+    
+        <a href="/"> <span class="arrow">←</span> Home </a>
+    
+
+    
+        
+            <a href="/about">About </a>
+        
+    
+    <a class="cta" href="/feed.xml">Subscribe</a>
+</nav>
+
+  
+
+  <section id="wrapper" class="">
+    <article class="post">
+    <header>
+        <h1>Apple Pay And Touch Id Part I</h1>
+        <h2 class="headline">September 22, 2015</h2>
+    </header>
+    <section id="post-body">
+        <h1>Apple Pay &amp; Touch ID - Part I: Introduction to Keychain ACLs and LA Framework</h1>
+
+<p>This serie of articles was written few months ago, but never had the chance to publish it. Its content is based on a light research performed to the Apple Touch ID component, its integration with mobile applications, and Apple Pay.</p>
+
+<p>The series will be initially composed by three articles:</p>
+
+<ul>
+<li><strong>Part I</strong> - Introduction to Keychain ACLs and LA Framework.</li>
+<li><strong>Part II</strong> - <a href="http://retarded.ninja/2015/apple-pay-and-touch-id-part-ii/">Analyzing its implementation on mobile applications.</a></li>
+<li><strong>Part III</strong> - A quick look to Apple Pay.</li>
+</ul>
+
+<hr>
+
+<h1>Introduction</h1>
+
+<p>Touch ID is Apple’s biometric fingerprint authentication technology, introduced with the iPhone 5S. There are currently two ways to use Touch ID as an authentication mechanism in an iOS 8 application: <em>Keychain ACLs</em> and <em>Local Authentication framework</em>.</p>
+
+<p>This article explains the changes introduced to the Keychain and Touch ID in iOS 8, reviews the security involved in its integration with third party applications, and the potential for security bypass in some implementations of the biometric verification</p>
+
+<hr>
+
+<h1>Review of the Keychain &amp; Secure Enclave</h1>
+
+<p>The Keychain is a specialized database optimized for secrets, i.e., (<em>passwords</em>, <em>internet passwords</em>, <em>keys</em>, <em>certificates</em>, and <em>identities</em>). Applications have access to their own keychain items, but may not access keychain items of other applications. This operation is enforced by the <em>securityd</em> daemon. Inside the Keychain, each row is known as a Keychain Item, and an encrypted Keychain Attribute describes each item.</p>
+
+<p>Keychain access control may include a combination of a user passcode and/or unique device secret. The Secure Enclave is a coprocessor that initially was first included within the A7 chip, and utilizes its own secure boot process completely independent from the application processor.</p>
+
+<p>The Keychain does not decrypt Keychain items by itself, rather, the Secure Ecnalve &#39;unwraps&#39; content keys, and the actual decryption process probably happens in securityd daemon. It also provides all cryptographic operations. Furthermore, the Secure Enclave is responsible for determining a successful match from fingerprint data analyzed from the TouchID sensor against a specific registered print.</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_image1.png?raw=true" alt="imagefoot">
+<p align="center" style="font-size:11px"><strong>Figure 1</strong> - Application interacting with Keychain - <em>Credits to Xamarin for this graphic</em></p></p>
+
+<hr>
+
+<h1>Touch ID</h1>
+
+<p>According to Wikipedia, Touch ID is a fingerprint recognition feature, designed by Apple and available on the iPhone 5S, the iPhone 6 and iPhone 6+. Its main purpose is to allow users to unlock their device, as well as make purchases in the various Apple media stores, and to authenticate Apple Pay online or in apps.</p>
+
+<hr>
+
+<h1>Keychain ACLs and Touch ID</h1>
+
+<p>Access Control List (<em>ACL</em>) is a Keychain item attribute introduced in iOS 8 that describes the information required for a particular operation to occur, e.g., (<em>a passcode</em>). What makes the ACLs interesting is the ability to set accesibility and authentication properties for a Keychain item to which they are applied:</p>
+
+<ul>
+<li><strong>Accessibility</strong> - Represents when a particular item should be readable (<em>for example when a device is unlocked</em>). This is similar to what the &#39;<em>kSecAttrAccessible</em>&#39; attribute does.</li>
+<li><strong>Authentication</strong> - Is a concept that is represented by a policy specifying what authentication requirements must be satisfied before the system will decrypt the Keychain item.
+</br></br>
+<img src="https://raw.githubusercontent.com/0xroot/0xroot.github.io/master/_images/ap_image2.png" alt="imagespecial">
+<p align="center" style="font-size:11px"><strong>Figure 2</strong> - Diagram of this new attribute with the rest of keychain item - <em>Credits to Xamarin for this graphic</em></p></li>
+</ul>
+
+<p>Furthermore, with iOS 8, there is a user policy, &#39;<em>kSecAccessControlUserPresence</em>&#39;, enforced by the <em>securityd</em> daemon. This means that Touch ID can be used for authentication to authorize the Keychain item decryption operation. However, the device configuration can influence the policy evaluation, the table below this paragraph is for one particular policy (<em>kSecAccessControlUserPresence</em>):</p>
+
+<style type="text/css">
+.tg  {border-collapse:collapse;border-spacing:0;}
+.tg td{font-family:Arial, sans-serif;font-size:14px;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;}
+.tg th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;}
+.tg .tg-s6z2{text-align:center}
+.tg .tg-6ead{background-color:#eaeaea;text-align:center}
+</style>
+
+<table class="tg">
+  <tr>
+    <th class="tg-6ead">Device Configuration</th>
+    <th class="tg-6ead">Policy Evaluation</th>
+    <th class="tg-6ead">Backup Mechanism</th>
+  </tr>
+  <tr>
+    <td class="tg-s6z2">Device without passcode</td>
+    <td class="tg-s6z2">No access</td>
+    <td class="tg-s6z2">No backup</td>
+  </tr>
+  <tr>
+    <td class="tg-s6z2">Device with passcode</td>
+    <td class="tg-s6z2">Requires passcode</td>
+    <td class="tg-s6z2">No backup</td>
+  </tr>
+  <tr>
+    <td class="tg-s6z2">Device with Touch ID</td>
+    <td class="tg-s6z2">Prefers Touch ID</td>
+    <td class="tg-s6z2">Allows passcode</td>
+  </tr>
+</table>
+
+<ul>
+<li><strong>Device without passcode set</strong> - The request to retrieve the Keychain item will always fail.</li>
+<li><strong>Device with passcode set</strong> - The user is presented with UI to enter the device passcode.</li>
+<li><strong>Device with Touch ID</strong> -  The user is prompted to unlock the item using Touch ID. Passcode can be used as a fall-back.</li>
+</ul>
+
+<p></br>
+Currently, there are two ways to use Touch ID as an authentication mechanism.</p>
+
+<hr>
+
+<h1>Using Touch ID through Local Authentication Framework</h1>
+
+<p>The simple implementation involves an API that returns the success or failure of a finger recognition. In case of error, an error code is returned, explaining the reason. However, there are some caveats with using this implementation:</p>
+
+<ul>
+<li>The application must be in foreground.</li>
+<li>The policy evaluation may fail, and the devleoper is responsible for handling all errors and ensuring an application has a fall-back mechanism.
+</br></br></li>
+</ul>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_image3.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 3</strong> - Application communicating through Local Authentication*</p></p>
+
+<p>Any application can call Policy Evaluation inside Local Authentication, which will start an operation inside Secure Enclave. It’s possible in this way to start the Touch ID operation and get access granted to the application the credentials without being in touch with Secure Enclave.</p>
+
+<p>A couple of examples where this framework can be used instead of Keychain are:</p>
+
+<ul>
+<li><p>Verifying that user is enrolled, in order to unlock specific features of application, or perform some kind of parental control because as a developer you may want to be sure that the user is present.</p></li>
+<li><p>As an extension to the current application’s authentication mechanisms, by using Touch ID as first factor instead of a password or PIN, (<em>though this is usually a task better suited to Keychain</em>). As a second factor authentication, which in this case, Local Authentication is the best choice for your application.</p></li>
+</ul>
+
+<p>It’s important to highlight how the security is implemented in both mechanisms because in Keychain keys the SE is the trusted component, and OS trusts on it but SE doesn’t have to trust OS. But with Local Authentication the app trust the OS, but the OS is the one that enforces that bad-behaving apps don’t do what they are not suppose to do. It also means that there is no direct access to SE, and the application will only get the results.</p>
+
+<p>Last but not least, with Local Authentication, there is no access to the registered fingerprints, nor fingerprint images, which are secured by the SE. The SE is the sole owner of such information and no other system component can get access to this data.</p>
+
+<p>From the API perspective, it’s possible to use Local Authentication framework and use From the API perspective, it’s possible to use Local Authentication framework and use of  the Keychain. For this purpose, two new functions are available:</p>
+
+<ul>
+<li><strong>canEvaluatePolicy</strong> - Checks if the policy can be ever evaluated on the device. It will determine if the device is Touch ID enabled and contains any fingerprints.</li>
+<li><strong>evaluatePolicy</strong> - Starts the authentication operation and shows the necessary user interface, and the result that will be returned by this evaluatePolicy function will be a simple boolean value.</li>
+</ul>
+
+<p></br>
+The only policy available at the moment to show the Touch ID prompt is ‘<em>LAPolicyDeviceOwnerAuthenticationWithBiometrics</em>&#39;</p>
+
+<hr>
+
+<h1>Integrating Local Authentication</h1>
+
+<p>First step to integrate Local Authentication within your application is to create an ‘LAContext’ object that will handle the task of asking the user to authenticate using Touch ID.</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">LAContext *myContext = [[LAContext alloc] init]; __autoreleasing NSError *authenticationError;
+
+NSString *localizedReasonString = NSLocalizedString(@“Title Box&quot;, @“Reason why Touch ID is required&quot;);
+</code></pre></div>
+<p>The nil auto-released NSError object will be passed by reference to the <code>-canEvaluatePolicy:error:</code> method in the example below, in order to determine if an error occurred.</p>
+
+<p>Next thing is to create the localized reason string, since all Touch ID operations require this string. This string provides the reason the application is requesting the fingerprint.</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">[myContext evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+                 localizedReason:myLocalizedReasonString
+                           reply:^(BOOL success, NSError *error) {
+                               if (success) {
+                                   NSLog(@&quot;User is authenticated successfully&quot;);
+                               } else {
+                                   switch (error.code) {
+                                       case LAErrorAuthenticationFailed:
+                                           NSLog(@&quot;Authentication Failed&quot;);
+                                           break;
+                                       case LAErrorUserCancel:
+                                           NSLog(@&quot;User pressed Cancel button&quot;);
+                                           break;
+                                       case LAErrorUserFallback:
+                                           NSLog(@&quot;User pressed \&quot;Enter Password\&quot;&quot;);
+                                           break;        
+                                       default:
+                                           NSLog(@&quot;Touch ID is not configured&quot;);
+                                           break;
+                                   }
+                                   NSLog(@&quot;Authentication Fails&quot;);
+                               }
+                           }];
+   } else {
+       NSLog(@&quot;Can not evaluate Touch ID&quot;);
+   }
+</code></pre></div>
+<p>First thing is to check if the device can use Touch ID by triggering the ‘-canEvaluatePolicy:error:’ method. If the response is a ‘true’ statement, then a call to ‘-evaluatePolicy:localizedReason:reply:’ method is performed, passing as argument the localized reason string defined previously. If the response is a false, then it will be necessary to handle the response obtained in the error object, as below:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">typedef NS_ENUM(NSInteger, LAError)
+{
+    /// Authentication was not successful, because user failed to provide valid credentials.
+    LAErrorAuthenticationFailed = kLAErrorAuthenticationFailed,
+
+    /// Authentication was canceled by user (e.g. tapped Cancel button).
+    LAErrorUserCancel           = kLAErrorUserCancel,
+
+    /// Authentication was canceled, because the user tapped the fallback button (Enter Password).
+    LAErrorUserFallback         = kLAErrorUserFallback,
+
+    /// Authentication was canceled by system (e.g. another application went to foreground).
+    LAErrorSystemCancel         = kLAErrorSystemCancel,
+
+    /// Authentication could not start, because passcode is not set on the device.
+    LAErrorPasscodeNotSet       = kLAErrorPasscodeNotSet,
+
+    /// Authentication could not start, because Touch ID is not available on the device.
+    LAErrorTouchIDNotAvailable  = kLAErrorTouchIDNotAvailable,
+
+    /// Authentication could not start, because Touch ID has no enrolled fingers.
+    LAErrorTouchIDNotEnrolled   = kLAErrorTouchIDNotEnrolled,
+} NS_ENUM_AVAILABLE(10_10, 8_0);
+</code></pre></div>
+<hr>
+
+<h1>Using Touch ID through Keychain keys</h1>
+
+<p>When creating items in the Keychain, multiple attributes need to be set. Such attributes specify two things:</p>
+
+<ul>
+<li>What the item represents.</li>
+<li>The access level that it should have.</li>
+</ul>
+
+<p></br>
+A full list of such attributes can be seen <a href="https://developer.apple.com/library/ios/documentation/Security/Reference/keychainservices/#//apple_ref/doc/constant_group/Attribute_Item_Keys">here</a>, however, there is an special attribute that needs to be added to the Keychain if the use of Touch ID is required:</p>
+
+<ul>
+<li><strong>kSecAttrAccessControl</strong> - This allows to the developer to define a fine-grained access control. The value associated with this is of type ‘<em>SecAccessControl</em>’, which represents the ACL and has to be created using the ‘<em>SecAccessControlCreateWithFlags</em>’ function. Currently, there is only one value ‘<em>UserPresence</em>’. To be able to create this object, you have to define which with authentication and which accessibility you require for this item.</li>
+</ul>
+
+<p></br>
+The following snippet code shows how to store a secret:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">SecAccessControlRef sacObject =
+SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, kSecAccessControlUserPresence, &amp;error); !
+
+NSData* secret = [@&quot;top secret&quot; dataWithEncoding:NSUTF8StringEncoding];
+NSDictionary *query = @{            
+    (id)kSecClass: (id)kSecClassGenericPassword,
+    (id)kSecAttrService: @&quot;myservice&quot;,
+    (id)kSecAttrAccount: @&quot;account name here&quot;,
+    (id)kSecValueData: secret,
+    (id)kSecAttrAccessControl: (id)sacObject};
+
+OSStatus status =  SecItemAdd((CFDictionaryRef)query, nil);
+</code></pre></div>
+<p>For a more detailed example, please check this <a href="https://developer.apple.com/library/ios/samplecode/KeychainTouchID/Listings/KeychainTouchID_AAPLKeychainTestsViewController_m.html#//apple_ref/doc/uid/TP40014530-KeychainTouchID_AAPLKeychainTestsViewController_m-DontLinkElementID_8">resource</a></p>
+
+<hr>
+
+<h1>Conclusions</h1>
+
+<p>Since its presentation in WWDC 2014 (<em>you should watch <a href="https://developer.apple.com/videos/wwdc2014/">Session 711 - Keychain and Authentication with Touch ID</a></em>), where Apple specified possible uses for Local Authentication that involve Touch ID as a potential way to replace passwords or PINs, or even using it as second factor authentication, I found it very questionable.</p>
+
+<p>After analyzing its implementation, I came to the conclusion that Local Authentication only seems useful when an unlocked device falls into the wrong hands, basically because it has been designed to ensure that when an application is launched, an additional login screen will be displayed to unlock features of application or to prevent access to the application’s secrets among other things.</p>
+
+<p>However this information is accessible through USB, and because of that, sensitive information is usually encrypted and a key derived from the password introduced when the application is launched is required in order to decrypt the information.</p>
+
+<p>Using Touch ID, no password is introduced and the SE only provides a true/false statement that will grant us direct access to the requested information. This can be translated into a lack of additional encryption as there is no password from which derive a key to encrypt/decrypt sensitive information. That’s why Local Authentication framework, as authentication mechanism being used to protect your applications’ assets, should be called into question. Additionally, the ease of achieving a bypass and getting access to application’s assets has been proven in this article.</p>
+
+<p>It may prevent from promptly access to sensitive data on a first instance, but the Local Authentication provided in the sample code from Apple doesn’t provide security benefit from this new feature added on iOS 8. Instead of Local Authentication, it would be better to implement a mechanism based on Keychain Access Control Lists (ACL), through the ‘<em>kSecAttrAccessControl</em>’ attribute (<em>explained at the beginning of this article</em>), which specifies the Keychain entries that can be decrypted if the user has been re-authenticated using the device passcode or Touch ID.</p>
+
+<h1>References</h1>
+
+<ul>
+<li><a href="http://devstreaming.apple.com/videos/wwdc/2014/711xx6j5wzufu78/711/711_keychain_and_authentication_with_touch_id.pdf?dl=1">Keychain and Authentication with Touch ID</a></li>
+<li><a href="http://www.andreas-kurtz.de/2014/10/ios-8-touch-id-local-authentication-caveats.html">Andreas Kurtz - iOS 8 Touch ID Authentication API</a></li>
+<li><a href="https://www.apple.com/business/docs/iOS_Security_Guide.pdf">iOS Security Guide</a></li>
+<li><a href="https://developer.apple.com/library/ios/documentation/LocalAuthentication/Reference/LocalAuthentication_Framework/">Local Authentication Framework Reference</a></li>
+</ul>
+
+    </section>
+</article>
+<footer id="post-meta" class="clearfix">
+    <a href="http://twitter.com/0xroot">
+        <img class="avatar" src="/assets/images/avatar.png">
+        <div>
+            <span class="dark">0xroot</span>
+            <span>Reverse all the things</span>
+        </div>
+    </a>
+
+    <section id="sharing">
+        <a class="twitter" href="https://twitter.com/intent/tweet?text=https://retarded.ninja/2015/apple-pay-and-touch-id-part-i/ - Apple Pay And Touch Id Part I by @0xroot"><span class="icon-twitter"> Tweet</span></a>
+
+<a class="facebook" href="#" onclick="
+    window.open(
+      'https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(location.href),
+      'facebook-share-dialog',
+      'width=626,height=436');
+    return false;"><span class="icon-facebook-rect"> Share</span>
+</a>
+    </section>
+</footer>
+
+<!-- Disqus comments -->
+
+
+<!-- Archive post list -->
+
+    <ul id="post-list" class="archive readmore">
+        <h3>Read more</h3>
+        
+            <li>
+                <a href="/2015/apple-pay-and-touch-id-part-ii/">Apple Pay And Touch Id Part Ii<aside class="dates">Oct 07</aside></a>
+            </li>
+        
+            <li>
+                <a href="/2015/apple-pay-and-touch-id-part-i/">Apple Pay And Touch Id Part I<aside class="dates">Sep 22</aside></a>
+            </li>
+        
+    </ul>
+
+
+
+
+
+  </section>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+  <script src="/assets/js/main.js"></script>
+  <script src="/assets/js/highlight.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-XXXXXXXX-X', 'auto');
+    ga('send', 'pageview');
+  </script>
+</body>
+</html>
+
+
+

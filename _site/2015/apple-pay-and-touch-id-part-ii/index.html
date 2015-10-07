@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Яetarded Ninja - Apple Pay And Touch Id Part Ii</title>
+  <link rel="shortcut icon" href="/assets/images/favicon.ico">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="alternate" type="application/rss+xml" title="My Blog" href="/rss.xml">
+  <link rel="stylesheet" href="/assets/css/highlight.css">
+</head>
+<body>
+
+  <nav class="main-nav">
+    
+        <a href="/"> <span class="arrow">←</span> Home </a>
+    
+
+    
+        
+            <a href="/about">About </a>
+        
+    
+    <a class="cta" href="/feed.xml">Subscribe</a>
+</nav>
+
+  
+
+  <section id="wrapper" class="">
+    <article class="post">
+    <header>
+        <h1>Apple Pay And Touch Id Part Ii</h1>
+        <h2 class="headline">October 7, 2015</h2>
+    </header>
+    <section id="post-body">
+        <h1>Apple Pay &amp; Touch ID - Part II: Local Authentication caveats</h1>
+
+<p>This is the second article of this serie about Apple Pay &amp; Touch ID.  For those interested in the first part, please refer to:  <a href="http://retarded.ninja/2015/apple-pay-and-touch-id-part-i/">Introduction to Keychain ACLs and LA framework</a>.</p>
+
+<p>For this second article, we will take a real application which implements the Touch ID authentication via <em>Local Authentication</em> framework and after a simple reverse engineering process we will demonstrate how this mechanism can be defeated with a static and dynamic approach.</p>
+
+<p>The series will be initially composed by three articles:</p>
+
+<ul>
+<li><strong>Part I</strong> - <a href="http://retarded.ninja/2015/apple-pay-and-touch-id-part-i/">Introduction to Keychain ACLs and LA Framework.</a></li>
+<li><strong>Part II</strong> - Analyzing its implementation on mobile applications.</li>
+<li><strong>Part III</strong> - A quick look to Apple Pay.</li>
+</ul>
+
+<hr>
+
+<h1>NOP all the things: A static approach</h1>
+
+<p>First thing that can be done in order to determine if the application is using Local Authentication framework is to check the shared libraries that have been using it in the compilation process with <em>Otool</em> utility.</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">➜ NS_LocalAuthentication.app  otool -vL NS_LocalAuthentication | grep -Hsin &quot;LocalAuthentication&quot; --color=AUTO
+(standard input):2:     /System/Library/Frameworks/LocalAuthentication.framework/LocalAuthentication (compatibility version 1.0.0, current version 1.0.0)
+</code></pre></div>
+<p>Next step is to determine which approach is more convenient to achieve our goals. In this article, we are going to modify the application’s binary and tamper with its source code. This can be done in multiple ways, via <em>Cycript</em> or <em>GDB</em> at runtime, or through static analysis by using <em>IDA Pro</em> / <em>Hopper</em> / <em>Radare2</em> or any other disassembler utility. </p>
+
+<p>This being said, it is necessary to spot the function where the implementation for Local Authentication is contained. A quick tip to go through this is to perform a search for strings like &#39;<em>objc<em>cls</em>ref_LAContext</em>&#39;, &#39;<em>canEvaluatePolicy</em>&#39;, or &#39;<em>evaluatePolicy</em>&#39;.</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing1.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 1</strong> - <em>evaluatePolicy</em> matches within the binary*</p></p>
+
+<p>The only thing that we need to remember is that both methods have a different use:</p>
+
+<ul>
+<li><p><strong>canEvaluatePolicy:error:</strong> - Checks if the device is Touch ID available, otherwise it returns an error.</p></li>
+<li><p><strong>evaluatePolicy:localizedreason:reply:</strong> - Initializes the authentication operation, providing the reason for requesting authentication through the &#39;<em>localizedReason</em>&#39; parameter and the reply block that is executed when policy evaluation finishes.</p></li>
+</ul>
+
+<p>Because of this, we are going to focus our efforts in the ‘evaluatePolicy’ one. Furthermore, the developer must not call ‘canEvaluatePolicy:error:’ in the same block, otherwise it could lead to deadlock. </p>
+
+<p>A quick look into its cross references reveals the following matches:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing2.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 2</strong> - Cross-references for <em>canEvaluatePolicy:error</em></p></p>
+
+<p>It is necessary to take into consideration that the representation shown below may differ from one application to another one, but the concept is the same and should be applicable to any app using Local Authentication framework mechanisms.  </p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing3.png?raw=true" alt="title">
+<img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing3_2.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 3</strong> - Assembly instructions for <em>sub_36244c</em> method.</p></p>
+
+<p>The instructions at offset <strong>0x00362494</strong> (<em># add r9, pc</em>) and <strong>0x0036249c</strong> (<em># ldr.w r1, [r9]</em>), make reference to the &#39;<em>evaluatePolicy</em>&#39; method, but there is no track of the block that makes reference to the reply block that is executed when policy finishes. Accordingly, this is not exactly the method that we need to modify. </p>
+
+<p>According to Hopper’s representation, the instruction that triggers the ‘evaluatePolicy’ method is:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text"> r0 = [r2 evaluatePolicy:0x1 localizedReason:r3 reply:STK32];
+</code></pre></div>
+<p>As you can see, the implementation for the reply block appears as &#39;<em>STK32</em>&#39; when the block structure looks similar to the one below:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">[context evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+        localizedReason:@&quot;To access your photos&quot;
+
+                reply:^(BOOL success, NSError *error) {
+                    if (success) {          
+                        NSLog(@&quot;Authenticated using Touch ID.&quot;);        
+                    } else {
+                            [self reportError];     
+                             }
+               }        
+}];
+</code></pre></div>
+<p>This means that our reverse engineering work is not done yet -- a new search must be performed to determine the block responsible for returning the evaluation value. Once again, there are multiple paths to reach our goals. The easiest ones are:</p>
+
+<ul>
+<li><p>Follow the references to other functions that are presented in the disassembly output for the &#39;<em>sub_36244c</em>&#39; function.</p></li>
+<li><p>Search for the string &#39;<em>success</em>&#39; and take a look at its cross references, as it is commonly used in the if-statement reply block.</p></li>
+</ul>
+
+<p>With the first procedure, the address we are looking for is located in the instruction at offset <strong>0x362468</strong> (<em># ldr r2, [r0 #0x14]</em>) and <strong>0x36246a</strong> (<em># add r9, pc</em>). This can be translated into a reference to offset &#39;<em>0x3624b1</em>&#39; (<em>sub_3624b0 + 0x1</em>). A quick look into its source code reveals the structure we have been looking for:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing4.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 4</strong> - Diagram for different memory jumps.</p></p>
+
+<p>Let&#39;s take a look into the pseudo-code representation provided by Hopper for this method:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing5.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 5</strong> - Pseudo-code representation for <em>sub_3624b0</em></p></p>
+
+<p>Far from being exact, it helps us to provide a better understanding on what is going on under the hood. In this case, the reply code that will be returned is being assigned to &#39;<em>r8</em>&#39; register, which will be used to retrieve its respective Boolean representation and assigns it as a value for the key &#39;<em>success</em>&#39;.</p>
+
+<p>The way to proceed is to modify the &#39;<em>r8</em>&#39; or &#39;<em>arg1</em>&#39; register to <em>0x1</em>, assuring that the policy will always return &#39;<em>true</em>&#39; independently of the evaluation performed.</p>
+
+<p>The other alternative that can be used to identify the policy block is to search for the string &#39;<em>success</em>&#39;, although this may not be effective in all cases and a significant amount of time is required to spot the structure code that fits with the implementation we’re looking for. For this particular case, the references to the string ‘success’ obtained were:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing6.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 6</strong> - Cross-references for the string <em>success</em></p></p>
+
+<p>The methods that look suspicious for our purposes are the last three; &#39;<em>sub_362330</em>&#39;, &#39;<em>sub_3624b0</em>&#39;, and &#39;<em>sub_362678</em>&#39;. However, only one will contain the right code structure, which in this case is the second one, &#39;<em>sub_3624b0</em>&#39;.</p>
+
+<p>As we stated before, although the Touch ID use has to be invoked through the ‘evaluatePolicy’ method, the method where it is implemented may differ by application. Because of that, it implies that the way to bypass it will also differ. Perhaps the best wat to see this is through another example:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing7.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 7</strong> - Block that contains the check for the fingerprint</p></p>
+
+<p>In the case above, the reply block is referenced by the instruction located at offset &#39;<strong>0x0028e82c</strong>&#39; (<em># add r1, pc</em>), while the call to &#39;<em>evaluatePolicy</em>&#39; method is located at offset &#39;<strong>0x028e85e</strong>&#39; (<em># add r1, pc</em>). The block that evaluates the policy can be seen at &#39;[<em>StartViewController showTouchIDPromptIfApplicable</em>]<em><em>block</em>invoke</em>&#39;. Its code structure is the following:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing8.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 8</strong> - Diagram representation for the previous code block</p></p>
+
+<p>An approximate representation provided by Hopper can be seen here:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing9.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 9</strong> - Pseudo-code representation</p></p>
+
+<p>As you may have noticed, the evaluation is checked in the if-statement. If the condition is met, then the Touch ID component will allow the user to initializes session into the application. Otherwise it will prompt the fallback mechanism, which will be the access through passcode (<em>the one established within the application, not by the operating system</em>).</p>
+
+<p>The way to circumvent this is even simpler than the previous example, as we don’t need to add additional instructions and it can be done by adding a nop instruction in the &#39;<em>beq.w</em>&#39; instruction that performs the jump.</p>
+
+<p>Basically, we need to pass from this state:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing10.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 10</strong> - Authentication branch statement.</p></p>
+
+<p>To this other:</p>
+
+<p><img src="https://github.com/0xroot/0xroot.github.io/blob/master/_images/ap_reversing11.png?raw=true" alt="title">
+<p align="center" style="font-size:11px"><strong>Figure 11</strong> - Authentication mechanism bypassed.</p></p>
+
+<p>By doing this, we are ensuring with 100% probability that the policy will always be evaluated as true, and therefore, the Touch ID authentication mechanism implemented within the application will be avoided with anything that makes contact with the Touch ID sensor. </p>
+
+<hr>
+
+<h1>Cycript: Overriding evaluatePolicy on runtime</h1>
+
+<p>It is necessary to understand how everything works under the hood, but in terms of productivity and efforts, the static approach describe above this section is time consuming.</p>
+
+<p>Another approach totally different is to use Cycript, for those who are not familiar with such utility, Cycript is a Javascript interpreter which also understands Objective-C syntax, meaning that it is possible to write either Objective-C or Javascript or even both from a terminal.</p>
+
+<p>It is used to hook into a running process and provide us the ability to modify the application&#39;s behavior at runtime and override its methods, variables, etc.</p>
+
+<p>For the sake of this article, it will be assumed that the user has Cydia installed and running on its device and knows how it works. Our goal is to override the implementation for the method <code>evaluatePolicy:localizedReason:reply:</code> and independently of the reason evaluated, force it to return <code>YES</code> and grant access to the user.</p>
+
+<p>Assuming the user is already attached to the process with:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">iPhone-6:~ root# cycript -p PID_OR_APP_NAME
+</code></pre></div>
+<p>The code block that we need to provide to Cycript is described below this line:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">cy# @import com.saurik.substrate.MS
+cy# var oldm = {};
+cy# MS.hookMessage(LAContext, @selector(evaluatePolicy:localizedReason:reply:), function(self, reason, block) { block(YES, nil); }, oldm);
+cy#
+</code></pre></div>
+<p>Right after that, -- <em>and once the user has completed the authentication with a fingerprint or a passcode previously</em> -- if the application is closed with the <code>home</code> button, and re-launched right again, the auth prompt wil be visible for a fraction of second but will dismiss itself.</p>
+
+<p>Another alternative out of the scope for this article is to hook <code>LAContext</code> method using <code>CydiaSubstrate</code> via <code>dylib</code>.</p>
+
+<hr>
+
+<h1>References</h1>
+
+<ul>
+<li><a href="http://iphonedevwiki.net/index.php/Cycript_Tricks">Cycript tricks</a></li>
+</ul>
+
+<hr>
+
+<h1>Thanks</h1>
+
+<p>I would like to take a moment to thank some friends who helped me during my research:</p>
+
+<ul>
+<li>Andrey Belenko <a href="https://twitter.com/abelenko">Twitter</a></li>
+<li>Marco Grassi <a href="https://twitter.com/marcograss">Twitter</a></li>
+<li>Pancake <a href="https://twitter.com/trufae">Twitter</a></li>
+</ul>
+
+    </section>
+</article>
+<footer id="post-meta" class="clearfix">
+    <a href="http://twitter.com/0xroot">
+        <img class="avatar" src="/assets/images/avatar.png">
+        <div>
+            <span class="dark">0xroot</span>
+            <span>Reverse all the things</span>
+        </div>
+    </a>
+
+    <section id="sharing">
+        <a class="twitter" href="https://twitter.com/intent/tweet?text=https://retarded.ninja/2015/apple-pay-and-touch-id-part-ii/ - Apple Pay And Touch Id Part Ii by @0xroot"><span class="icon-twitter"> Tweet</span></a>
+
+<a class="facebook" href="#" onclick="
+    window.open(
+      'https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(location.href),
+      'facebook-share-dialog',
+      'width=626,height=436');
+    return false;"><span class="icon-facebook-rect"> Share</span>
+</a>
+    </section>
+</footer>
+
+<!-- Disqus comments -->
+
+
+<!-- Archive post list -->
+
+    <ul id="post-list" class="archive readmore">
+        <h3>Read more</h3>
+        
+            <li>
+                <a href="/2015/apple-pay-and-touch-id-part-ii/">Apple Pay And Touch Id Part Ii<aside class="dates">Oct 07</aside></a>
+            </li>
+        
+            <li>
+                <a href="/2015/apple-pay-and-touch-id-part-i/">Apple Pay And Touch Id Part I<aside class="dates">Sep 22</aside></a>
+            </li>
+        
+    </ul>
+
+
+
+
+
+  </section>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+  <script src="/assets/js/main.js"></script>
+  <script src="/assets/js/highlight.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-XXXXXXXX-X', 'auto');
+    ga('send', 'pageview');
+  </script>
+</body>
+</html>
+
+
+

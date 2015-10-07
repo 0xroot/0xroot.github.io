@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Яetarded Ninja</title>
+    <description>Reverse all the things</description>
+    <link>https://retarded.ninja</link>
+    <atom:link href="https://retarded.ninja/feed.xml" rel="self" type="application/rss+xml" />
+    
+      <item>
+        <title>Apple Pay And Touch Id Part Ii</title>
+        
+        
+          <description>&lt;h1&gt;Apple Pay &amp;amp; Touch ID - Part II: Local Authentication caveats&lt;/h1&gt;
+
+&lt;p&gt;This is the second article of this serie about Apple Pay &amp;amp; Touch ID.  For those interested in the first part, please refer to:  &lt;a href=&quot;http://retarded.ninja/2015/apple-pay-and-touch-id-part-i/&quot;&gt;Introduction to Keychain ACLs and LA framework&lt;/a&gt;.&lt;/p&gt;
+</description>
+        
+        <pubDate>Wed, 07 Oct 2015 00:00:00 +0200</pubDate>
+        <link>https://retarded.ninja/2015/apple-pay-and-touch-id-part-ii/</link>
+        <guid isPermaLink="true">https://retarded.ninja/2015/apple-pay-and-touch-id-part-ii/</guid>
+      </item>
+    
+      <item>
+        <title>Apple Pay And Touch Id Part I</title>
+        
+        
+          <description>&lt;h1&gt;Apple Pay &amp;amp; Touch ID - Part I: Introduction to Keychain ACLs and LA Framework&lt;/h1&gt;
+
+&lt;p&gt;This serie of articles was written few months ago, but never had the chance to publish it. Its content is based on a light research performed to the Apple Touch ID component, its integration with mobile applications, and Apple Pay.&lt;/p&gt;
+</description>
+        
+        <pubDate>Tue, 22 Sep 2015 00:00:00 +0200</pubDate>
+        <link>https://retarded.ninja/2015/apple-pay-and-touch-id-part-i/</link>
+        <guid isPermaLink="true">https://retarded.ninja/2015/apple-pay-and-touch-id-part-i/</guid>
+      </item>
+    
+  </channel>
+</rss>
