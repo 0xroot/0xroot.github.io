@@ -170,6 +170,8 @@ I would like to take a moment to thank some friends who helped me during my rese
 * Andrey Belenko [Twitter](https://twitter.com/abelenko)
 * Marco Grassi [Twitter](https://twitter.com/marcograss)
 * Pancake [Twitter](https://twitter.com/trufae)
+* Revskills [Twitter](https://twitter.com/asesyochos)
+* Pof [Twitter](https://twitter.com/pof)
 
 
 
