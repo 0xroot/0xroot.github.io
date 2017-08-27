@@ -1,6 +1,6 @@
-name: Яetarded Ninja
+name: I'm Not A Ninja
 description: Reverse all the things
-meta_description: "Яetarded Ninja, Reverse all the things"
+meta_description: "I'm Not A Ninja, Reverse all the things"
 
 aboutPage: true
 
@@ -9,13 +9,13 @@ highlighter: pygments
 
 paginate: 20
 baseurl: /
-domain_name: 'https://retarded.ninja'
+domain_name: 'https://imnota.ninja'
 google_analytics: 'UA-XXXXXXXX-X'
 disqus: false
 disqus_shortname: 'your-disqus-shortname'
 
 # Details for the RSS feed generator
-url:            'https://retarded.ninja'
+url:            'https://imnota.ninja'
 author:         '0xroot'
 authorTwitter:  '0xroot'
 
