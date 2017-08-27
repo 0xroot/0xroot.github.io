@@ -5,7 +5,7 @@ meta_description: "I'm Not A Ninja, Reverse all the things"
 aboutPage: true
 
 markdown: kramdown
-highlighter: pygments
+highlighter: rouge
 
 paginate: 20
 baseurl: /
